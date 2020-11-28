@@ -21,3 +21,5 @@ Flags:
       --upstream string            upstream service (default "http://localhost:8080") 
 
 ```
+
+* inspired by https://blog.kowalczyk.info/article/Jl3G/https-for-free-in-go-with-little-help-of-lets-encrypt.html

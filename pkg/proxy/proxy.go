@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -16,29 +15,13 @@ import (
 
 //AutocertServer is autocert server
 type AutocertServer struct {
-	HTTPPort     string
-	HTTPSPort    string
-	AllowedHost  map[string]bool
-	ReverseProxy *httputil.ReverseProxy
+	HTTPAddr     string
+	HTTPSAddr    string
+	AllowedHost  []string
+	CertCacheDir string
+	Upstream     string
 
-	sync.Mutex
-}
-
-//New returns new autocert server
-func New() (*AutocertServer, error) {
-	u, _ := url.Parse("http://localhost:8083")
-	as := &AutocertServer{
-		HTTPPort:  ":80",
-		HTTPSPort: ":443",
-		AllowedHost: map[string]bool{
-			"gapiv4.rajatjindal.com": true,
-			"gapiv5.rajatjindal.com": true,
-			"gapiv6.rajatjindal.com": true,
-		},
-		ReverseProxy: httputil.NewSingleHostReverseProxy(u),
-	}
-
-	return as, nil
+	reverseProxy *httputil.ReverseProxy
 }
 
 func (a *AutocertServer) getHTTPServer() *http.Server {
@@ -54,19 +37,34 @@ func (a *AutocertServer) getHTTPServer() *http.Server {
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
-		Addr:         a.HTTPPort,
+		Addr:         a.HTTPAddr,
 		Handler:      mux,
 	}
 
 	return server
 }
 
+//Init inits the reverse proxy
+func (a *AutocertServer) Init() error {
+	if len(a.AllowedHost) == 0 {
+		return fmt.Errorf("allowed-host list is empty. need atleast one entry")
+	}
+
+	u, err := url.Parse(a.Upstream)
+	if err != nil {
+		return err
+	}
+
+	a.reverseProxy = httputil.NewSingleHostReverseProxy(u)
+	return nil
+}
+
 //Start starts the autocert server
 func (a *AutocertServer) Start() {
 	hostPolicy := func(ctx context.Context, host string) error {
-		for k, v := range a.AllowedHost {
-			if v && k == host {
-				logrus.Infof("host policy matched for %s", host)
+		for _, v := range a.AllowedHost {
+			if v == host {
+				logrus.Debugf("host policy matched for %s", host)
 				return nil
 			}
 		}
@@ -77,16 +75,16 @@ func (a *AutocertServer) Start() {
 	m := &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: hostPolicy,
-		Cache:      autocert.DirCache("/home/app/cert"),
+		Cache:      autocert.DirCache(a.CertCacheDir),
 	}
 
 	server := &http.Server{
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
-		Addr:         a.HTTPSPort,
+		Addr:         a.HTTPSAddr,
 		TLSConfig:    &tls.Config{GetCertificate: m.GetCertificate},
-		Handler:      m.HTTPHandler(a.ReverseProxy),
+		Handler:      m.HTTPHandler(a.reverseProxy),
 	}
 
 	go func() {

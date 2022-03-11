@@ -1,12 +1,13 @@
 package proxy
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"gopkg.in/yaml.v2"
 )
 
 //AutocertServer is autocert server
@@ -22,7 +23,7 @@ func initReverseProxyMap(file string) (map[string]*httputil.ReverseProxy, error)
 	}
 
 	m := map[string]string{}
-	err = json.Unmarshal(raw, &m)
+	err = yaml.Unmarshal(raw, &m)
 	if err != nil {
 		return nil, err
 	}

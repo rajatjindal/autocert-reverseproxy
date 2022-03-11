@@ -11,14 +11,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var proxyServer = proxy.AutocertServer{}
+var (
+	upstreamFile string
+	certCacheDir string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "autocert-reverseproxy",
 	Short: "golang reverse proxy that handles cert provisioning as well",
 	Run: func(cmd *cobra.Command, args []string) {
-		err := proxyServer.Init()
+		proxyServer, err := proxy.New("certs", "upstream.yaml")
 		if err != nil {
 			logrus.Fatal(err)
 		}
@@ -42,9 +45,6 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&proxyServer.CertCacheDir, "cert-cache-dir", "", "dir to cache certs to")
-	rootCmd.Flags().StringArrayVar(&proxyServer.AllowedHost, "allowed-host", []string{}, "hostnames allowed to request cert")
-	rootCmd.Flags().StringVar(&proxyServer.HTTPAddr, "http-addr", ":80", "http address")
-	rootCmd.Flags().StringVar(&proxyServer.HTTPSAddr, "https-addr", ":443", "https address")
-	rootCmd.Flags().StringVar(&proxyServer.Upstream, "upstream", "http://localhost:8080", "upstream service")
+	rootCmd.Flags().StringVar(&certCacheDir, "cert-cache-dir", "certs", "dir to cache certs to")
+	rootCmd.Flags().StringVar(&upstreamFile, "upstream-file", "upstream.yaml", "upstream map file")
 }
